@@ -1,0 +1,638 @@
+---
+title: "COVID19 Tends in Eastern and Southern Africa region"
+author: "hrayr"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+options(scipen=999)
+require("sfsmisc")
+library(knitr)
+library(dplyr)
+library(ggplot2)
+library(ggthemes)
+library(reshape2)
+library(sf)
+library(tmap)
+library(rgdal)
+library(tidyverse)
+### get population data
+library(wpp2019)
+data(pop)
+esapop<- pop[pop$name %in% c("Angola"
+                                     ,"Botswana"
+                                     ,"Burundi"
+                                     ,"Comoros"
+                                     ,"Eritrea"
+                                     ,"Eswatini"
+                                     ,"Ethiopia"
+                                     ,"Kenya"
+                                     ,"Lesotho"
+                                     ,"Madagascar"
+                                     ,"Malawi"
+                                     ,"Mozambique"
+                                     ,"Namibia"
+                                     ,"Rwanda"
+                                     ,"Somalia"
+                                     ,"South Africa"
+                                     ,"South Sudan"
+                                     ,"United Republic of Tanzania"
+                                     ,"Uganda"
+                                     ,"Zambia"
+                                     ,"Zimbabwe"),]
+
+esapop<- esapop[,names(esapop) %in% c("name","2020")]
+names(esapop)<- c("country","Population_2020 (000)")
+esapop$country<-as.character(esapop$country)
+
+esapop[esapop=="United Republic of Tanzania"]<- "Tanzania"
+###get esa shape
+esamap<-read_sf("C:/USERS/hwannis/OneDrive - UNICEF/MENARO/91. ESARO/GIS/ESA_admin1_region.shp")
+esamap<- esamap[esamap$COUNTRY %in% esapop$country,]
+
+#esamap[esamap$COUNTRY=="Iran",1]<-c("Iran (Islamic Republic of)")
+#esamap[esamap$COUNTRY=="Syria",1]<-c("Syrian Arab Republic")
+esamap<-merge(esamap,esapop,by.x="COUNTRY",by.y="country")
+
+covid19_new<-read.csv("https://covid.ourworldindata.org/data/owid-covid-data.csv", header = TRUE, as.is = TRUE) 
+
+covid19_new %>% select("location","date","total_cases") %>% filter((location!= "")) %>% pivot_wider(names_from = location,values_from = total_cases,values_fill = list(total_cases=0)) %>% arrange(date)->covid19_db
+
+#remove last day/today in database given it is not complete at times
+covid19_db<-head(covid19_db,-1)
+
+#remove NA in between dates
+testdb<-covid19_db
+for(x in 1:ncol(testdb)){
+    for (i in 2:nrow(testdb)){
+      if (is.na(testdb[[i,x]]) & !is.na(testdb[[i-1,x]])) {
+      testdb[[i,x]]=testdb[[i-1,x]]
+    }   else if (is.na(testdb[[i,x]])) {
+      testdb[[i,x]]=0
+    } else {}
+    
+  }
+  if (is.na(testdb[[1,x]])) { testdb[[1,x]]=0}
+  }
+
+covid19_db<-testdb
+
+#covid19_deaths<-read.csv("https://covid.ourworldindata.org/data/ecdc/total_deaths.csv", header=TRUE, as.is=TRUE)
+
+covid19_new %>% select("location","date","total_deaths") %>% filter((location!= "")) %>% pivot_wider(names_from = location,values_from = total_deaths,values_fill = list(total_deaths=0))%>% arrange(date)->covid19_deaths
+
+#remove NA in between dates
+testdb<-covid19_deaths
+for(x in 1:ncol(testdb)){
+  for (i in 2:nrow(testdb)){
+      if (is.na(testdb[[i,x]]) & !is.na(testdb[[i-1,x]])) {
+      testdb[[i,x]]=testdb[[i-1,x]]
+    }   else if (is.na(testdb[[i,x]])) {
+      testdb[[i,x]]=0
+    } else {}
+    
+  }
+  if (is.na(testdb[[1,x]])) { testdb[[1,x]]=0}
+  }
+
+covid19_deaths<-testdb
+#remove last day/today in database given it is not complete at times
+covid19_deaths<-head(covid19_deaths,-1)
+#names(covid19_db)[names(covid19_db)=="Palestine"]<-c("State of Palestine")
+#names(covid19_db)[names(covid19_db)=="Iran"]<-c("Iran (Islamic Republic of)")
+#names(covid19_db)[names(covid19_db)=="United.Arab.Emirates"]<-c("United Arab Emirates")
+#names(covid19_db)[names(covid19_db)=="Syria"]<-c("Syrian Arab Republic")
+#names(covid19_db)[names(covid19_db)=="Saudi.Arabia"]<-c("Saudi Arabia")
+
+
+covid19_esa<-covid19_db[names(covid19_db) %in% c("date"
+                                     ,"Angola"
+                                     ,"Botswana"
+                                     ,"Burundi"
+                                     ,"Comoros"
+                                     ,"Eritrea"
+                                     ,"Eswatini"
+                                     ,"Ethiopia"
+                                     ,"Kenya"
+                                     ,"Lesotho"
+                                     ,"Madagascar"
+                                     ,"Malawi"
+                                     ,"Mozambique"
+                                     ,"Namibia"
+                                     ,"Rwanda"
+                                     ,"Somalia"
+                                     ,"South Africa"
+                                     ,"South Sudan"
+                                     ,"Tanzania"
+                                     ,"Uganda"
+                                     ,"Zambia"
+                                     ,"Zimbabwe")]
+
+#names(covid19_deaths)[names(covid19_deaths)=="Palestine"]<-c("State of Palestine")
+#names(covid19_deaths)[names(covid19_deaths)=="Iran"]<-c("Iran (Islamic Republic of)")
+#(covid19_deaths)[names(covid19_deaths)=="United.Arab.Emirates"]<-c("United Arab Emirates")
+#names(covid19_deaths)[names(covid19_deaths)=="Syria"]<-c("Syrian Arab Republic")
+#names(covid19_deaths)[names(covid19_deaths)=="Saudi.Arabia"]<-c("Saudi Arabia")
+
+
+covid19_esad<-covid19_deaths[names(covid19_deaths) %in% c("date"
+                                     ,"Angola"
+                                     ,"Botswana"
+                                     ,"Burundi"
+                                     ,"Comoros"
+                                     ,"Eritrea"
+                                     ,"Eswatini"
+                                     ,"Ethiopia"
+                                     ,"Kenya"
+                                     ,"Lesotho"
+                                     ,"Madagascar"
+                                     ,"Malawi"
+                                     ,"Mozambique"
+                                     ,"Namibia"
+                                     ,"Rwanda"
+                                     ,"Somalia"
+                                     ,"South Africa"
+                                     ,"South Sudan"
+                                     ,"Tanzania"
+                                     ,"Uganda"
+                                     ,"Zambia"
+                                     ,"Zimbabwe")]
+
+##france trend data
+covid19_fr<-covid19_db[names(covid19_db) %in% c("France")]
+
+##italy trend data
+covid19_italy<-covid19_db[names(covid19_db) %in% c("Italy")]
+
+##spain trend data
+covid19_spain<-covid19_db[names(covid19_db) %in% c("Spain")]
+
+
+##china trend data
+covid19_china<-covid19_db[names(covid19_db) %in% c("China")]
+
+##USA trend data
+covid19_usa<-covid19_db[names(covid19_db) %in% c("United States")]
+
+##india trend data
+covid19_india<-covid19_db[names(covid19_db) %in% c("India")]
+
+##world trend
+covid19_wld<-covid19_db[names(covid19_db) %in% c("World")]
+
+
+#preparing for ESA aggregate
+covid19esar<- covid19_esa
+covid19esar$ESA<- rowSums(covid19_esa[,-1])
+covid19esar<- covid19esar[names(covid19esar) %in% c("date","ESA")]
+
+#bind into datasets mena countries and comparatives
+covid19_esa_comparative<-cbind(covid19_esa,covid19_china,covid19_fr,covid19_italy,covid19_spain,covid19_usa, covid19_india)
+#bind mena region and comparatives
+covid19esar<-cbind(covid19esar,covid19_china,covid19_fr,covid19_italy,covid19_spain, covid19_usa, covid19_india)
+
+#transfor date var into as.Date
+covid19<-covid19_esa_comparative
+covid19$date<-as.Date(covid19$date)
+esac19<-covid19esar
+esac19$date<-as.Date(esac19$date)
+
+vt<-covid19$date
+vtm<-esac19$date
+
+
+#for ggploting
+esaregional<-melt(esac19,id="date")
+
+covid19$date<-NULL
+esac19$date<-NULL
+
+#create incidendce dataframe
+c19esa_inci<- covid19-mutate_all(covid19,lag)
+c19esa_inci<-cbind(date=vt[-1],c19esa_inci[-1,])
+#group by weeks
+#c19esa_inci$datew<-format(c19esa_inci$date,"%W")
+#c19esa_inci$datey<- format(c19esa_inci$date,"%y")
+
+#date format to year and week-count and summarize counts by week
+c19esa_inci$date<- format(c19esa_inci$date,format="%Y-%U")
+c19esa_inci_weeks<- c19esa_inci %>% group_by(date) %>% summarise_all(sum)
+
+ndaysinweek<-c19esa_inci %>% group_by(date) %>% dplyr::summarise(daysinweek=n())  
+
+if (ndaysinweek$daysinweek[nrow(ndaysinweek)]<7)  
+                          {c19esa_inci_weeks<-c19esa_inci_weeks[1:(nrow(c19esa_inci_weeks)-1),]} else    
+                          {c19esa_inci_weeks<-c19esa_inci_weeks}
+
+vtweeks<-seq(1,length(c19esa_inci_weeks$date))
+
+#covid19[,1:ncol(covid19)]<-sapply(covid19[, 1:ncol(covid19)], as.numeric)
+#menac19<-as.data.frame(apply(menac19,2, as.numeric))
+
+covid19esa<-covid19[,!names(covid19) %in% c("China","France","Italy","Spain","United States", "India")]
+covid19china<-(covid19$China)
+covid19italy<-(covid19[,names(covid19) %in% c("Italy")])
+covid19spain<-(covid19$Spain)
+covid19usa<-covid19$`United States`
+row.names(covid19esa)<-NULL
+
+esa_total_deaths<-covid19_esad[nrow(covid19_esad),]
+esa_total_deaths$date<-NULL
+
+#preparing data for tabulating
+tabing<-as.data.frame(t(covid19esa[nrow(covid19esa),]))
+tabing$proportion<-round(tabing[,1]/sum(tabing[,1])*100,2)
+
+tabing<-merge(tabing,esapop,by.x="row.names",by.y="country")
+names(tabing)<-c("Country","Tot infected","Percent","Pop (000)")
+tabing$TotCases_per1000<-tabing$`Tot infected`/tabing$`Pop (000)`
+
+tabing<-tabing[order(tabing$`Tot infected`,decreasing = TRUE),]
+
+barcharting<-data.frame(names(covid19esa),(t(covid19esa[nrow(covid19esa),])),(t(esa_total_deaths)))
+row.names(barcharting)<-NULL                     
+names(barcharting)<-c("Country","Confirmed", "Deaths")
+cfr<-barcharting
+
+
+chartingwithpop<-merge(barcharting,esapop,by.x = "Country",by.y="country")
+
+##add vars for mapping
+esamap<-merge(esamap,tabing,by.x="COUNTRY",by.y="Country")
+
+```
+
+## ESA Country C19 cases - Data as of `r format(max(vt), '%d %B, %Y')`
+
+The following report is based on data compiled by worldometer from John Hopkins University. The total cumulative number of confirmed COVID19 cases in ESA region is `r max(esac19$ESA)`. The total number of deaths are `r sum(barcharting$Deaths)`. The ESA average infected is `r round(sum(barcharting$Confirmed)/sum(esapop[,2]),2)`per thousand people.
+
+`r kable(tabing, digits=1,row.names=0, caption="Number and Proportion of Infecteds in ESA by Country", longtable = TRUE, format="pandoc")`
+
+```{r ggploting, echo=FALSE,fig.height = 5, fig.width = 7, fig.align = "center"}
+
+
+dfm <- melt(barcharting[,c("Country","Confirmed","Deaths")],id.vars = 1)
+
+plot1<- ggplot()+geom_col(aes(x=reorder(Country,-value),y=value, fill=variable),data=dfm, position = "dodge")+ theme_economist(base_family="ITC Officina Sans") + scale_colour_economist()+ theme(plot.title=element_text(size=12),legend.title = element_blank(),legend.text = element_text(size=8),legend.key.size = unit(.8,units = "lines"),legend.position = c(.8,.81),axis.title.y = element_blank())+labs(title = paste("ESA COVID19 Confirmed Cases and Deaths - ",format(max(vt), '%d %B, %Y')),y="Number of People")
+
+
+plot1+coord_flip()
+
+```
+
+The largest share of confirmed cases in ESA are in `r barcharting$Country[barcharting$Confirmed==max(barcharting$Confirmed)]` as of `r format(max(vt), '%d %B, %Y')`. The highest number of recorded deaths so far has been in `r barcharting$Country[barcharting$Deaths==max(barcharting$Deaths)]` with `r max(barcharting$Deaths)`.
+
+```{r mapping,echo=FALSE,fig.height = 10, fig.width = 7, fig.align = "center"}
+
+
+tm_shape(esamap)+tm_polygons("TotCases_per1000")+tm_text("COUNTRY",size ="AREA",root = 0,auto.placement = TRUE)+tm_compass()+tm_scale_bar(position=c("right", "bottom"))+tm_layout(main.title = "Total infected per 1000 population by country") +tmap_options(check.and.fix = TRUE)
+
+```
+
+
+
+```{r casesdeaths, echo=FALSE, fig.height = 5, fig.width = 7, fig.align = "center"}
+
+cfr$proportionDead<-ifelse(cfr$Confirmed>0,(cfr$Deaths/cfr$Confirmed)*100,0)
+
+cfrplot<-ggplot()+ geom_col(aes(x=reorder(Country,-proportionDead),y=proportionDead),data=cfr)+theme_economist(base_family="ITC Officina Sans") + scale_colour_economist()+theme(plot.title=element_text(size=12),axis.text.x =element_text (size=8))+labs(title = paste("ESA COVID19 Case Fatality Rate (%) - ",format(max(vt), '%d %B, %Y')),y="Percentage of Confirmed cases who died", x="")
+
+cfrplot+coord_flip()
+```
+
+```{r ggplotingdaily, echo=FALSE,fig.height = 5, fig.width = 7, fig.align = "center"}
+
+
+dailyincidence<-as.data.frame(t(c19esa_inci[nrow(c19esa_inci),2:21]))
+dailyincidence$Country<-rownames(dailyincidence)
+names(dailyincidence)<-c("Incidence","Country")
+
+plotdaily<- ggplot()+geom_col(aes(x=reorder(Country,-Incidence),y=Incidence),data=dailyincidence, position = "dodge")+ theme_economist(base_family="ITC Officina Sans") + scale_colour_economist()+ theme(plot.title=element_text(size=12),legend.title = element_blank(),legend.text = element_text(size=8),legend.key.size = unit(.8,units = "lines"),legend.position = c(.8,.81),axis.title.y = element_blank())+labs(title = paste("ESA new cases on - ",format(max(vt), '%d %B, %Y')),y="Number of cases")
+
+plotdaily+coord_flip()
+
+```
+
+```{r ggplotingweekly, echo=FALSE,warning=FALSE,fig.height = 5, fig.width = 8, fig.align = "center"}
+
+# organize the last two weeks incident counts into a df
+weeklyincidence<-as.data.frame(t(c19esa_inci_weeks[(nrow(c19esa_inci_weeks)-1):nrow(c19esa_inci_weeks),2:21]))
+#get country names into column
+weeklyincidence$Country<-rownames(dailyincidence)
+# calculate week on week increase rate for values with at least 10 in previous week to avoid large ratios
+weeklyincidence$ratio<-ifelse(weeklyincidence$V1>10,((weeklyincidence$V2/weeklyincidence$V1)-1)*100,NA)
+# categorize negative and positive values for charting
+weeklyincidence$type<-ifelse(weeklyincidence$ratio<0,"n","y")
+
+plotweekly<- ggplot()+geom_col(aes(x=reorder(Country,-ratio),y=ratio,fill=type),data=weeklyincidence, position = "dodge")+ theme_economist(base_family="ITC Officina Sans") + scale_colour_economist()+ theme(plot.title=element_text(size=12),legend.title = element_blank(),legend.text = element_blank(),legend.position = "none",axis.title.y= element_blank(),axis.ticks = element_line(size = 1))+labs(title = paste("ESA Countries incidence -","Percent change from week to week"),y="Percent")
+
+
+plotweekly+coord_flip()
+
+```
+
+```{r positivityr, echo=FALSE,fig.height = 5, fig.width = 7, fig.align = "center"}
+
+positivity_dfm<-covid19_new %>% select("location","date", "positive_rate", "total_deaths_per_million") %>% filter(location %in% c("Angola"
+                    ,"Botswana"
+                    ,"Burundi"
+                    ,"Comoros"
+                    ,"Eritrea"
+                    ,"Eswatini"
+                    ,"Ethiopia"
+                    ,"Kenya"
+                    ,"Lesotho"
+                    ,"Madagascar"
+                    ,"Malawi"
+                    ,"Mozambique"
+                    ,"Namibia"
+                    ,"Rwanda"
+                    ,"Somalia"
+                    ,"South Africa"
+                    ,"South Sudan"
+                    ,"Tanzania"
+                    ,"Uganda"
+                    ,"Zambia"
+                    ,"Zimbabwe"))
+
+for (countryX in c("Angola"
+                    ,"Botswana"
+                    ,"Burundi"
+                    ,"Comoros"
+                    ,"Eritrea"
+                    ,"Eswatini"
+                    ,"Ethiopia"
+                    ,"Kenya"
+                    ,"Lesotho"
+                    ,"Madagascar"
+                    ,"Malawi"
+                    ,"Mozambique"
+                    ,"Namibia"
+                    ,"Rwanda"
+                    ,"Somalia"
+                    ,"South Africa"
+                    ,"South Sudan"
+                    ,"Tanzania"
+                    ,"Uganda"
+                    ,"Zambia"
+                    ,"Zimbabwe")) {
+  
+  data_plotting_poistivity<- positivity_dfm %>% filter(location==countryX) %>% arrange("date") %>% filter(!is.na(positive_rate))
+  
+  plot1<- ggplot(data_plotting_poistivity, aes(x= as.Date(date), y=positive_rate))+geom_line(colour = "red")+ theme_economist(base_family="ITC Officina Sans") + scale_colour_economist()+ theme(plot.title=element_text(size=12),legend.title = element_blank(),legend.text = element_text(size=8),legend.key.size = unit(.8,units = "lines"),legend.position = c(.8,.81),axis.title.y = element_blank())+labs(title = paste("ESA COVID19 Positivity rate - ",(max(positivity_dfm$date)), countryX),y="percent")
+
+
+
+plot1
+  
+  
+                    }
+
+
+
+```
+
+### ESA regional trend - Comparative with other countries
+
+The trend is cumulative confirmed from `r min(vt)` to `r max(vt)`. As comparative, ESA regional aggregate is plotted with trends of other countries which have had significant case loads so far - `r names(esac19)[!names(esac19) %in% c("ESA")]`.
+
+```{r COVIDesa, echo=FALSE,fig.height = 6, fig.width = 7.5, fig.align = "center"}
+
+options(scipen=999)
+
+##plot all countries
+matplot(x = (vtm), y = esac19, type = "l",
+        xlab = "Time", ylab = "Cumulative Infected", main = "ESA regional trend - comaprative with other countries",
+        lwd = 2, lty = 1, bty = "l", col = 1:ncol(esac19), xaxt='n',ylim = c(0,max(esac19)))
+axis.Date(side =1 ,at = vt,labels = format(vt, "%b-%y"))
+
+#matlines(x=vt,y=covid19china,type="l",col =ncol(covid19esa)+1 )
+
+## Add legend
+legend(x="left",legend=c(names(esac19)), pch = 1, col = 1:ncol(esac19), bty = "n",horiz = 0,cex = .8)
+
+```
+
+```{r COVID, echo=FALSE,include=FALSE,fig.height = 6, fig.width = 7.5, fig.align = "center"}
+
+options(scipen=999)
+
+##plot all countries
+matplot(x = (vt), y = log10(covid19esa), type = "l",
+        xlab = "Time", ylab = "Cumulative Infected", main = "ESA Countries",
+        lwd = 2, lty = 1, bty = "l", col = 2:ncol(covid19esa), xaxt='n',ylim = c(0,max(log10(covid19esa))))
+
+axis.Date(side =1 ,at = vt,labels = format(vt, "%b-%y"))
+#matlines(x=vt,y=covid19china,type="l",col =ncol(covid19esa)+1 )
+
+## Add legend
+legend(x="left",legend=c(names(covid19esa)), pch = 1, col = 2:ncol(covid19esa), bty = "n",horiz = 0,cex = .70)
+
+```
+
+## Country comparative trends
+
+Each ESA country (red line) is plotted with background countries (grey lines) to give an idea of the current stage of the epidemic in each country as compared to the rest. The second chart is the weekly incidence trend of each country.
+
+```{r countryprofile, echo=FALSE, fig.height=7, fig.width=9, warning=FALSE}
+days_since<-100
+totaldb<-list()
+countrynames<-c()
+for(j in seq(1,ncol(covid19))) {
+
+ cntryseries<-covid19[covid19[[j]]>=days_since,j]
+
+ if (length(cntryseries)<nrow(covid19) & length(cntryseries)>0){
+     cntryseries[(length(cntryseries)+1):(nrow(covid19))]<-NA
+
+     assign(paste0(names(covid19)[j]),cntryseries)
+     
+     totaldb<-cbind(totaldb,assign(paste0(names(covid19)[j]),cntryseries))
+     countrynames<-c(countrynames,names(covid19)[j])
+ } else if (length(cntryseries)==nrow(covid19))  {
+   totaldb<-cbind(totaldb,assign(paste0(names(covid19)[j]),cntryseries))
+   countrynames<-c(countrynames,names(covid19)[j])
+ }
+ totaldb<-as.data.frame(totaldb)
+
+ names(totaldb)<-countrynames
+}
+
+ totaldb<-as.data.frame(sapply(totaldb, as.numeric))
+
+
+options(scipen=999)
+
+vtx<-seq(0,nrow(totaldb)-1)
+
+graphingesaweeks<-c19esa_inci_weeks
+
+graphingesaweeks$date<-NULL
+
+for (y in names(totaldb)){
+  mult.fig(2,main=paste("Country Trend - ",y),cex.main = 2)
+  
+  matplot(x = vtx, y = log10((totaldb)), type = "l", xlab = paste("Days since", days_since, "case"), ylab = "Log scale", main = paste("Cumulative number of confirmed cases per day since",days_since,"cases reported"),lwd = 2, lty = 3, bty = "l", col = "grey", xaxt='n', cex.main=1.4, cex.lab=.9)
+  
+matlines(x=(vtx), y=log10(totaldb[[paste(y)]]), col="red",lwd = 2, lty = 1, bty = "l",xaxt='n', ylim=c(0,max(((log10(totaldb[[paste(y)]]))),na.rm = TRUE)))
+  #par(cex.main=.5)
+  axis(side =1, cex.axis=1)
+  
+  cat("The date when reported case in",y,"went above 100 cases was on",format((as.Date(min(covid19_db$date[covid19_db[[paste(y)]]>100]))),'%d %B, %Y'),"\n")
+  
+   matplot(x = vtweeks, y = ((graphingesaweeks)), type = "l", xlab = paste("Weeks since begining of Year"), ylab = "People/WeeK", main = "Weekly Incidence",lwd = 2, lty = 3, bty = "l", col = "grey", xaxt='n', cex.main=1.4, cex.lab=.9,ylim=c(0,max((graphingesaweeks[[paste(y)]]))))
+  
+
+matlines(x=(vtweeks), y=(graphingesaweeks[[paste(y)]]), col="red",lwd = 2, lty = 1, bty = "l")
+  #par(cex.main=.5)
+  axis(side =1, cex.axis=1)
+  
+  
+  }
+
+```
+
+```{r casesnew, echo=FALSE, include=FALSE, fig.height = 18, fig.width = 9, fig.align = "center"}
+graphingesaweeks<-c19esa_inci_weeks
+
+graphingesaweeks$date<-NULL
+
+#mult.fig(mfrow=c(ncol(graphingesaweeks)/3,3),main=paste("esa Countries - Total weekly Incidence"))
+
+layout(matrix(seq(1,3*ceiling(ncol(graphingesaweeks)/3)),ncol=3),widths = lcm(rep.int(7,3)),height =lcm (rep.int(4.5,round(ncol(graphingesaweeks)/3))), respect = FALSE)
+
+for (y in names(graphingesaweeks)){
+  
+  matplot(x = vtweeks, y = ((graphingesaweeks)), type = "l", xlab = paste("Weeks"), ylab = "People/WeeK", main = y,lwd = 2, lty = 3, bty = "l", col = "grey", xaxt='n', cex.main=1.2, cex.lab=.9,ylim=c(0,max((graphingesaweeks[[paste(y)]]))))
+  
+  
+
+matlines(x=(vtweeks), y=(graphingesaweeks[[paste(y)]]), col="red",lwd = 2, lty = 1, bty = "l")
+  #par(cex.main=.5)
+  axis(side =1, cex.axis=1)
+  
+}
+
+mtext(text=paste("ESA Countries - Total weekly Incidence"),side = 3, line = 0, outer = TRUE)
+```
+
+```{r COVIDesagg,include=FALSE, echo=FALSE,fig.height = 5, fig.width = 9, fig.align = "center"}
+
+options(scipen=999)
+
+##plot all countries
+plotesa<- ggplot() + theme_economist(base_family="ITC Officina Sans") + scale_colour_economist()+geom_line(aes(x=date,y=value,colour=variable),data=esaregional)+ theme(plot.title=element_text(size=12),legend.title = element_blank(),legend.text = element_text(size=9),legend.key.size = unit(.9,units = "lines"),legend.position = c(.8,.81))+labs(title = paste("esa region and Comparatives"),y="Number of People")
+
+plotesa
+
+```
+
+```{r COVIDVacc, echo=FALSE, include= TRUE, fig.height = 6, fig.width = 8, fig.align = "center"}
+options(scipen=999)
+
+##plot vaccination rates
+
+covid19_new %>% filter(location %in%  c("Angola"
+                                     ,"Botswana"
+                                     ,"Burundi"
+                                     ,"Comoros"
+                                     ,"Eritrea"
+                                     ,"Eswatini"
+                                     ,"Ethiopia"
+                                     ,"Kenya"
+                                     ,"Lesotho"
+                                     ,"Madagascar"
+                                     ,"Malawi"
+                                     ,"Mozambique"
+                                     ,"Namibia"
+                                     ,"Rwanda"
+                                     ,"Somalia"
+                                     ,"South Africa"
+                                     ,"South Sudan"
+                                     ,"Tanzania"
+                                     ,"Uganda"
+                                     ,"Zambia"
+                                     ,"Zimbabwe","France", "United States","United Kingdom","World"),  
+                       !is.na(new_deaths_smoothed_per_million))%>% select(location,date,new_deaths_smoothed_per_million,people_fully_vaccinated_per_hundred) -> vaccinationDf
+
+
+for (x in unique(vaccinationDf$location)) {
+#scale sec axis to first by factor max(2)/max(1)  
+vaccinationDf %>% filter(location==x) %>% rename(DpM=new_deaths_smoothed_per_million) %>% rename(VpH=people_fully_vaccinated_per_hundred)->k
+
+scale.factor=max(k$VpH,na.rm=TRUE)/max(k$DpM,na.rm=TRUE)
+
+ggplot(k,aes(x=as.Date(date)))+geom_line(aes(x=as.Date(date),y=DpM),color="red")+geom_point(aes(y=(VpH/scale.factor)), color="blue")+scale_y_continuous(name = expression("Deaths per million"),sec.axis = sec_axis(~ . *scale.factor, name = "Vaccination per hundred"))+labs(x="Date", title = paste(x))+theme_classic()-> f
+  
+print(f)
+  
+}
+
+
+#matlines(x=vt,y=covid19china,type="l",col =ncol(covid19esa)+1 )
+
+## Add legend
+#legend(x="left",legend=c(names(covid19)), pch = 12, col = 1:ncol(covid19), bty = "n",horiz = 0,cex = .7)
+
+```
+
+```{=tex}
+\newpage
+\blandscape
+```
+```{r COVID3, echo=FALSE,include=FALSE, out.width='\\textwidth', fig.align = "center",fig.height = 7, fig.width = 9 }
+days_since<-100
+totaldb<-list()
+countrynames<-c()
+for(j in seq(1,ncol(covid19))) {
+
+ cntryseries<-covid19[covid19[[j]]>=days_since,j]
+
+ if (length(cntryseries)<nrow(covid19) & length(cntryseries)>0){
+     cntryseries[(length(cntryseries)+1):(nrow(covid19))]<-NA
+
+     assign(paste0(names(covid19)[j]),cntryseries)
+     
+     totaldb<-cbind(totaldb,assign(paste0(names(covid19)[j]),cntryseries))
+     countrynames<-c(countrynames,names(covid19)[j])
+ } else if (length(cntryseries)==nrow(covid19))  {
+   totaldb<-cbind(totaldb,assign(paste0(names(covid19)[j]),cntryseries))
+   countrynames<-c(countrynames,names(covid19)[j])
+ }
+ totaldb<-as.data.frame(totaldb)
+
+ names(totaldb)<-countrynames
+}
+
+ totaldb<-as.data.frame(sapply(totaldb, as.numeric))
+
+
+options(scipen=999)
+
+vtx<-seq(0,nrow(totaldb)-1)
+mult.fig(ncol(totaldb),main=paste("ESA Country Trends"))
+for (y in names(totaldb)){
+  
+  matplot(x = vtx, y = log((totaldb)), type = "l", xlab = paste("Days since", days_since, "case"), ylab = "Log scale", main = y,lwd = 2, lty = 3, bty = "l", col = "grey", xaxt='n', yaxt='n', cex.main=1.2, cex.lab=.9)
+  
+  
+
+matlines(x=(vtx), y=log(totaldb[[paste(y)]]), col="red",lwd = 2, lty = 1, bty = "l",xaxt='n', ylim=c(0,max(log(totaldb[[paste(y)]]))))
+  #par(cex.main=.5)
+  axis(side =1, cex.axis=.5)
+  
+  }
+##plot all countries
+
+
+#matlines(x=vt,y=covid19china,type="l",col =ncol(covid19esa)+1 )
+
+## Add legend
+#legend(x="left",legend=c(names(covid19)), pch = 12, col = 2:ncol(covid19), bty = "n",horiz = 0,cex = .72)
+
+```
+
+\elandscape
